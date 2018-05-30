@@ -41,10 +41,6 @@ def get_tenant_model():
     return get_model(settings.TENANT_MODEL)
 
 
-def get_tenant_domain_model():
-    return get_model(settings.TENANT_DOMAIN_MODEL)
-
-
 def get_tenant_database_alias():
     return getattr(settings, 'TENANT_DB_ALIAS', DEFAULT_DB_ALIAS)
 

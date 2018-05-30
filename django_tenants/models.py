@@ -1,12 +1,9 @@
-from django.conf import settings
-from django.db import models, connection, transaction
+from django.db import models, connection
 from django.core.management import call_command
-from django.contrib.sites.shortcuts import get_current_site
-from django.urls import reverse
 # noinspection PyProtectedMember
 from .postgresql_backend.base import _check_schema_name
 from .signals import post_schema_sync, schema_needs_to_be_sync
-from .utils import schema_exists, get_tenant_domain_model
+from .utils import schema_exists
 from .utils import get_public_schema_name
 
 
@@ -30,11 +27,6 @@ class TenantMixin(models.Model):
 
     schema_name = models.CharField(max_length=63, unique=True,
                                    validators=[_check_schema_name])
-
-    domain_url = None
-    """
-    Leave this as None. Stores the current domain url so it can be used in the logs
-    """
 
     class Meta:
         abstract = True
@@ -171,51 +163,3 @@ class TenantMixin(models.Model):
                          verbosity=verbosity)
 
         connection.set_schema_to_public()
-
-    def get_primary_domain(self):
-        """
-        Returns the primary domain of the tenant
-        """
-        try:
-            domain = self.domains.get(is_primary=True)
-            return domain
-        except get_tenant_domain_model().DoesNotExist:
-            return None
-
-    def reverse(self, request, view_name):
-        """
-        Returns the URL of this tenant.
-        """
-        http_type = 'https://' if request.is_secure() else 'http://'
-
-        domain = get_current_site(request).domain
-
-        url = ''.join((http_type, self.schema_name, '.', domain, reverse(view_name)))
-
-        return url
-
-
-class DomainMixin(models.Model):
-    """
-    All models that store the domains must inherit this class
-    """
-    domain = models.CharField(max_length=253, unique=True, db_index=True)
-    tenant = models.ForeignKey(settings.TENANT_MODEL, db_index=True, related_name='domains',
-                               on_delete=models.CASCADE)
-
-    # Set this to true if this is the primary domain
-    is_primary = models.BooleanField(default=True)
-
-    @transaction.atomic
-    def save(self, *args, **kwargs):
-        # Get all other primary domains with the same tenant
-        domain_list = self.__class__.objects.filter(tenant=self.tenant, is_primary=True).exclude(pk=self.pk)
-        # If we have no primary domain yet, set as primary domain by default
-        self.is_primary = self.is_primary or (not domain_list.exists())
-        if self.is_primary:
-            # Remove primary status of existing domains for tenant
-            domain_list.update(is_primary=False)
-        super(DomainMixin, self).save(*args, **kwargs)
-
-    class Meta:
-        abstract = True
