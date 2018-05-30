@@ -100,6 +100,16 @@ class TenantMixin(models.Model):
         elif is_new:
             # although we are not using the schema functions directly, the signal might be registered by a listener
             schema_needs_to_be_sync.send(sender=TenantMixin, tenant=self.serializable_fields())
+        elif not is_new and self.auto_create_schema and not schema_exists(self.schema_name):
+            # Create schemas for existing models, deleting only the schema on failure
+            try:
+                self.create_schema(check_if_exists=True, verbosity=verbosity)
+                post_schema_sync.send(sender=TenantMixin, tenant=self.serializable_fields())
+            except Exception:
+                # We failed creating the schema, delete what we created and
+                # re-raise the exception
+                self.delete_schema()
+                raise
 
     def serializable_fields(self):
         """ in certain cases the user model isn't serializable so you may want to only send the id """
@@ -121,6 +131,20 @@ class TenantMixin(models.Model):
             cursor.execute('DROP SCHEMA %s CASCADE' % self.schema_name)
 
         super(TenantMixin, self).delete(*args, **kwargs)
+
+    def delete_schema(self):
+        """
+        Drop the tenant's associated schema.
+        """
+        has_schema = hasattr(connection, 'schema_name')
+        if has_schema and connection.schema_name not in (self.schema_name, get_public_schema_name()):
+            raise Exception("Can't delete tenant outside it's own schema or "
+                            "the public schema. Current schema is %s."
+                            % connection.schema_name)
+
+        if has_schema and schema_exists(self.schema_name):
+            cursor = connection.cursor()
+            cursor.execute('DROP SCHEMA %s CASCADE' % self.schema_name)
 
     def create_schema(self, check_if_exists=False, sync_schema=True,
                       verbosity=1):
