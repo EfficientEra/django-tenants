@@ -1,6 +1,6 @@
 from contextlib import contextmanager
 from django.conf import settings
-from django.db import connection
+from django.db import connection, DEFAULT_DB_ALIAS
 
 try:
     from django.apps import apps
@@ -43,6 +43,10 @@ def get_tenant_model():
 
 def get_tenant_domain_model():
     return get_model(settings.TENANT_DOMAIN_MODEL)
+
+
+def get_tenant_database_alias():
+    return getattr(settings, 'TENANT_DB_ALIAS', DEFAULT_DB_ALIAS)
 
 
 def get_public_schema_name():
