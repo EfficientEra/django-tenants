@@ -1,6 +1,6 @@
 from contextlib import contextmanager
 from django.conf import settings
-from django.db import connection, DEFAULT_DB_ALIAS
+from django.db import connections, DEFAULT_DB_ALIAS
 
 try:
     from django.apps import apps
@@ -9,32 +9,6 @@ except ImportError:
     from django.db.models.loading import get_model
 
 from django.core import mail
-
-
-@contextmanager
-def schema_context(schema_name):
-    previous_tenant = connection.tenant
-    try:
-        connection.set_schema(schema_name)
-        yield
-    finally:
-        if previous_tenant is None:
-            connection.set_schema_to_public()
-        else:
-            connection.set_tenant(previous_tenant)
-
-
-@contextmanager
-def tenant_context(tenant):
-    previous_tenant = connection.tenant
-    try:
-        connection.set_tenant(tenant)
-        yield
-    finally:
-        if previous_tenant is None:
-            connection.set_schema_to_public()
-        else:
-            connection.set_tenant(previous_tenant)
 
 
 def get_tenant_model():
@@ -51,6 +25,38 @@ def get_public_schema_name():
 
 def get_limit_set_calls():
     return getattr(settings, 'TENANT_LIMIT_SET_CALLS', False)
+
+
+def get_creation_fakes_migrations():
+    return getattr(settings, 'TENANT_CREATION_FAKES_MIGRATIONS', False)
+
+
+@contextmanager
+def schema_context(schema_name):
+    connection = connections[get_tenant_database_alias()]
+    previous_tenant = connection.tenant
+    try:
+        connection.set_schema(schema_name)
+        yield
+    finally:
+        if previous_tenant is None:
+            connection.set_schema_to_public()
+        else:
+            connection.set_tenant(previous_tenant)
+
+
+@contextmanager
+def tenant_context(tenant):
+    connection = connections[get_tenant_database_alias()]
+    previous_tenant = connection.tenant
+    try:
+        connection.set_tenant(tenant)
+        yield
+    finally:
+        if previous_tenant is None:
+            connection.set_schema_to_public()
+        else:
+            connection.set_tenant(previous_tenant)
 
 
 def clean_tenant_url(url_string):
@@ -92,6 +98,7 @@ def django_is_in_test_mode():
 
 
 def schema_exists(schema_name):
+    connection = connections[get_tenant_database_alias()]
     cursor = connection.cursor()
 
     # check if this schema already exists in the db

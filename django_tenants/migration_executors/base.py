@@ -25,7 +25,13 @@ def run_migrations(args, options, executor_codename, schema_name, allow_atomic=T
         )
 
     connection = connections[get_tenant_database_alias()]
-    connection.set_schema(schema_name)
+    sync_tenant = options.get('tenant')
+
+    if sync_tenant:
+        connection.set_schema(schema_name, include_public=False)
+    else:
+        connection.set_schema(schema_name)
+
     stdout = OutputWrapper(sys.stdout)
     stdout.style_func = style_func
     stderr = OutputWrapper(sys.stderr)

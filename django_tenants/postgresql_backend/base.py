@@ -4,7 +4,7 @@ from django.conf import settings
 from importlib import import_module
 
 from django.core.exceptions import ImproperlyConfigured, ValidationError
-from django_tenants.utils import get_public_schema_name, get_limit_set_calls
+from django_tenants.utils import get_public_schema_name, get_limit_set_calls, protect_case
 from django_tenants.postgresql_backend.introspection import DatabaseSchemaIntrospection
 import django.db.utils
 import psycopg2
