@@ -8,6 +8,7 @@ from django_tenants.utils import get_public_schema_name, get_limit_set_calls, pr
 from django_tenants.postgresql_backend.introspection import DatabaseSchemaIntrospection
 import django.db.utils
 import psycopg2
+from psycopg2.extensions import AsIs
 
 
 DatabaseError = django.db.utils.DatabaseError
@@ -129,16 +130,15 @@ class DatabaseWrapper(original_backend.DatabaseWrapper):
                                            "to call set_schema() or set_tenant()?")
             _check_schema_name(self.schema_name)
             public_schema_name = get_public_schema_name()
-            search_paths = []
 
             if self.schema_name == public_schema_name:
-                search_paths = [public_schema_name]
+                search_paths = [protect_case(public_schema_name)]
             elif self.include_public_schema:
-                search_paths = [self.schema_name, public_schema_name]
+                search_paths = [protect_case(self.schema_name), protect_case(public_schema_name)]
             else:
-                search_paths = [self.schema_name]
+                search_paths = [protect_case(self.schema_name)]
 
-            search_paths.extend(EXTRA_SEARCH_PATHS)
+            search_paths.extend([protect_case(extra_path) for extra_path in EXTRA_SEARCH_PATHS])
 
             if name:
                 # Named cursor can only be used once
@@ -152,7 +152,7 @@ class DatabaseWrapper(original_backend.DatabaseWrapper):
             # if the next instruction is not a rollback it will just fail also, so
             # we do not have to worry that it's not the good one
             try:
-                cursor_for_search_path.execute('SET search_path = {0}'.format(','.join(search_paths)))
+                cursor_for_search_path.execute('SET search_path = %s', (AsIs(','.join(search_paths)),))
             except (django.db.utils.DatabaseError, psycopg2.InternalError):
                 self.search_path_set = False
             else:

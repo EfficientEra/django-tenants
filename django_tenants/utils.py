@@ -102,7 +102,7 @@ def schema_exists(schema_name):
     cursor = connection.cursor()
 
     # check if this schema already exists in the db
-    sql = 'SELECT EXISTS(SELECT 1 FROM pg_catalog.pg_namespace WHERE LOWER(nspname) = LOWER(%s))'
+    sql = 'SELECT EXISTS(SELECT 1 FROM pg_catalog.pg_namespace WHERE nspname = %s)'
     cursor.execute(sql, (schema_name, ))
 
     row = cursor.fetchone()
@@ -121,3 +121,7 @@ def app_labels(apps_list):
     Returns a list of app labels of the given apps_list
     """
     return [app.split('.')[-1] for app in apps_list]
+
+
+def protect_case(schema_name):
+    return '"' + schema_name + '"'

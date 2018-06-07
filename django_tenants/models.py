@@ -1,6 +1,7 @@
 from django.db import models, connections
 from django.core.management import call_command
 # noinspection PyProtectedMember
+from psycopg2.extensions import AsIs
 from .postgresql_backend.base import _check_schema_name
 from .signals import post_schema_sync, schema_needs_to_be_sync
 from .utils import schema_exists
@@ -144,7 +145,7 @@ class TenantMixin(models.Model):
 
         if has_schema and schema_exists(self.schema_name):
             cursor = connection.cursor()
-            cursor.execute('DROP SCHEMA %s CASCADE' % self.schema_name)
+            cursor.execute('DROP SCHEMA %s CASCADE', (AsIs(connection.ops.quote_name(self.schema_name)),))
 
     def create_schema(self, check_if_exists=False, sync_schema=True,
                       verbosity=1):
@@ -163,7 +164,9 @@ class TenantMixin(models.Model):
             return False
 
         # create the schema
-        cursor.execute('CREATE SCHEMA %s' % self.schema_name)
+        cursor.execute('CREATE SCHEMA %s', (AsIs(connection.ops.quote_name(self.schema_name)),))
+
+        fake_migrations = get_creation_fakes_migrations()
 
         if sync_schema:
             call_command('migrate_schemas',

@@ -29,8 +29,8 @@ class DatabaseSchemaIntrospection(DatabaseIntrospection):
             FROM pg_catalog.pg_class c
             LEFT JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
             WHERE c.relkind IN ('r', 'v', '')
-                AND n.nspname = '%s'
-                AND pg_catalog.pg_table_is_visible(c.oid)""" % self.connection.schema_name)
+                AND n.nspname = %s
+                AND pg_catalog.pg_table_is_visible(c.oid)""", (self.connection.schema_name,))
 
         return [TableInfo(row[0], {'r': 't', 'v': 'v'}.get(row[1]))
                 for row in cursor.fetchall()
@@ -45,7 +45,7 @@ class DatabaseSchemaIntrospection(DatabaseIntrospection):
             FROM information_schema.columns
             WHERE table_schema = %s and table_name = %s""", [self.connection.schema_name, table_name])
         field_map = {line[0]: line[1:] for line in cursor.fetchall()}
-        cursor.execute("SELECT * FROM %s LIMIT 1" % self.connection.ops.quote_name(table_name))
+        cursor.execute("SELECT * FROM %s LIMIT 1", (self.connection.ops.quote_name(table_name),))
         return [FieldInfo(*((force_text(line[0]),) + line[1:6] +
                             (field_map[force_text(line[0])][0] == 'YES', field_map[force_text(line[0])][1])))
                 for line in cursor.description]
