@@ -32,31 +32,33 @@ def get_creation_fakes_migrations():
 
 
 @contextmanager
-def schema_context(schema_name):
+def schema_context(schema_name, include_public=True):
     connection = connections[get_tenant_database_alias()]
     previous_tenant = connection.tenant
+    previous_include_public = connection.include_public_schema
     try:
-        connection.set_schema(schema_name)
+        connection.set_schema(schema_name, include_public)
         yield
     finally:
         if previous_tenant is None:
             connection.set_schema_to_public()
         else:
-            connection.set_tenant(previous_tenant)
+            connection.set_tenant(previous_tenant, previous_include_public)
 
 
 @contextmanager
-def tenant_context(tenant):
+def tenant_context(tenant, include_public=True):
     connection = connections[get_tenant_database_alias()]
     previous_tenant = connection.tenant
+    previous_include_public = connection.include_public_schema
     try:
-        connection.set_tenant(tenant)
+        connection.set_tenant(tenant, include_public)
         yield
     finally:
         if previous_tenant is None:
             connection.set_schema_to_public()
         else:
-            connection.set_tenant(previous_tenant)
+            connection.set_tenant(previous_tenant, previous_include_public)
 
 
 def clean_tenant_url(url_string):
