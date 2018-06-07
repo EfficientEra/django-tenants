@@ -4,8 +4,7 @@ from django.core.management import call_command
 from psycopg2.extensions import AsIs
 from .postgresql_backend.base import _check_schema_name
 from .signals import post_schema_sync, schema_needs_to_be_sync
-from .utils import schema_exists
-from .utils import get_public_schema_name
+from .utils import get_public_schema_name, get_creation_fakes_migrations, get_tenant_database_alias, schema_exists
 
 
 class TenantMixin(models.Model):
@@ -120,19 +119,12 @@ class TenantMixin(models.Model):
         Deletes this row. Drops the tenant's schema if the attribute
         auto_drop_schema set to True.
         """
-        has_schema = hasattr(connection, 'schema_name')
-        if has_schema and connection.schema_name not in (self.schema_name, get_public_schema_name()):
-            raise Exception("Can't delete tenant outside it's own schema or "
-                            "the public schema. Current schema is %s."
-                            % connection.schema_name)
-
-        if has_schema and schema_exists(self.schema_name) and (self.auto_drop_schema or force_drop):
-            cursor = connection.cursor()
-            cursor.execute('DROP SCHEMA %s CASCADE' % self.schema_name)
+        do_delete_schema = self.auto_drop_schema or force_drop
+        self.delete_schema(do_delete_schema)
 
         super(TenantMixin, self).delete(*args, **kwargs)
 
-    def delete_schema(self):
+    def delete_schema(self, allow_delete=True):
         """
         Drop the tenant's associated schema.
         """
@@ -143,7 +135,7 @@ class TenantMixin(models.Model):
                             "the public schema. Current schema is %s."
                             % connection.schema_name)
 
-        if has_schema and schema_exists(self.schema_name):
+        if has_schema and schema_exists(self.schema_name) and allow_delete:
             cursor = connection.cursor()
             cursor.execute('DROP SCHEMA %s CASCADE', (AsIs(connection.ops.quote_name(self.schema_name)),))
 
@@ -169,9 +161,30 @@ class TenantMixin(models.Model):
         fake_migrations = get_creation_fakes_migrations()
 
         if sync_schema:
-            call_command('migrate_schemas',
-                         schema_name=self.schema_name,
-                         interactive=False,
-                         verbosity=verbosity)
+            try:
+                if fake_migrations:
+                    # First create empty tables
+                    call_command('migrate_schemas',
+                                 tenant=True,
+                                 schema_name=self.schema_name,
+                                 interactive=False,
+                                 verbosity=verbosity,
+                                 run_syncdb=True)
+                    # Then fake the completed migration
+                    call_command('migrate_schemas',
+                                 tenant=True,
+                                 schema_name=self.schema_name,
+                                 interactive=False,
+                                 verbosity=verbosity,
+                                 fake=True)
+                else:
+                    call_command('migrate_schemas',
+                                 tenant=True,
+                                 schema_name=self.schema_name,
+                                 interactive=False,
+                                 verbosity=verbosity)
+            except Exception:
+                self.delete_schema()
+                raise
 
         connection.set_schema_to_public()

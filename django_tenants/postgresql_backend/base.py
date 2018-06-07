@@ -70,10 +70,7 @@ class DatabaseWrapper(original_backend.DatabaseWrapper):
         but it does not actually modify the db connection.
         """
         self.tenant = tenant
-        self.schema_name = tenant.schema_name
-        self.include_public_schema = include_public
-        self.set_settings_schema(self.schema_name)
-        self.search_path_set = False
+        return self._set_schema(tenant.schema_name, include_public)
 
     def set_schema(self, schema_name, include_public=True):
         """
@@ -81,22 +78,23 @@ class DatabaseWrapper(original_backend.DatabaseWrapper):
         but it does not actually modify the db connection.
         """
         self.tenant = FakeTenant(schema_name=schema_name)
-        self.schema_name = schema_name
-        self.include_public_schema = include_public
-        self.set_settings_schema(schema_name)
-        self.search_path_set = False
+        return self._set_schema(self.schema_name, include_public)
 
     def set_schema_to_public(self):
         """
         Instructs to stay in the common 'public' schema.
         """
         self.tenant = FakeTenant(schema_name=get_public_schema_name())
-        self.schema_name = get_public_schema_name()
-        self.set_settings_schema(self.schema_name)
-        self.search_path_set = False
+        return self._set_schema(get_public_schema_name())
 
     def set_settings_schema(self, schema_name):
-        self.settings_dict['SCHEMA'] = schema_name
+        self.settings_dict['SCHEMA'] = [schema_name]  # should not be getting set to public when not necessary
+
+    def _set_schema(self, schema_name, include_public=True):
+        self.schema_name = schema_name
+        self.include_public_schema = include_public
+        self.set_settings_schema(self.schema_name)
+        self.search_path_set = False
 
     def get_schema(self):
         warnings.warn("connection.get_schema() is deprecated, use connection.schema_name instead.",
