@@ -78,7 +78,7 @@ class DatabaseWrapper(original_backend.DatabaseWrapper):
         but it does not actually modify the db connection.
         """
         self.tenant = FakeTenant(schema_name=schema_name)
-        self._set_schema(self.schema_name, include_public)
+        self._set_schema(schema_name, include_public)
 
     def set_schema_to_public(self):
         """
@@ -87,13 +87,15 @@ class DatabaseWrapper(original_backend.DatabaseWrapper):
         self.tenant = FakeTenant(schema_name=get_public_schema_name())
         self._set_schema(get_public_schema_name())
 
-    def set_settings_schema(self, schema_name):
+    def set_settings_schema(self, schema_name, include_public=True):
         self.settings_dict['SCHEMA'] = [schema_name]  # should not be getting set to public when not necessary
+        if include_public and schema_name != get_public_schema_name():
+            self.settings_dict['SCHEMA'].append(get_public_schema_name())
 
     def _set_schema(self, schema_name, include_public=True):
         self.schema_name = schema_name
         self.include_public_schema = include_public
-        self.set_settings_schema(self.schema_name)
+        self.set_settings_schema(schema_name, include_public)
         self.search_path_set = False
 
     def get_schema(self):

@@ -168,15 +168,8 @@ class TenantMixin(models.Model):
                                  tenant=True,
                                  schema_name=self.schema_name,
                                  interactive=False,
-                                 verbosity=verbosity,
-                                 run_syncdb=True)
-                    # Then fake the completed migration
-                    call_command('migrate_schemas',
-                                 tenant=True,
-                                 schema_name=self.schema_name,
-                                 interactive=False,
-                                 verbosity=verbosity,
-                                 fake=True)
+                                 verbosity=verbosity)
+                    # FIXME: this isn't actually different from the regular migration
                 else:
                     call_command('migrate_schemas',
                                  tenant=True,
