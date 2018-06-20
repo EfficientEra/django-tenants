@@ -4,7 +4,7 @@ from django.db import connection
 from django.http import Http404
 from django.utils.deprecation import MiddlewareMixin
 
-from django_tenants.utils import remove_www, get_public_schema_name, get_tenant_domain_model
+from django_tenants.utils import get_public_schema_name, get_tenant_model
 
 
 class TenantMainMiddleware(MiddlewareMixin):
@@ -16,29 +16,21 @@ class TenantMainMiddleware(MiddlewareMixin):
     """
 
     @staticmethod
-    def hostname_from_request(request):
-        """ Extracts hostname from request. Used for custom requests filtering.
-            By default removes the request's port and common prefixes.
-        """
-        return remove_www(request.get_host().split(':')[0])
-
-    def get_tenant(self, domain_model, hostname):
-        domain = domain_model.objects.select_related('tenant').get(domain=hostname)
-        return domain.tenant
+    def get_tenant(tenant_model, user):
+        if user.is_authenticated() and not user.is_staff:
+            return tenant_model.objects.get(user=user)
 
     def process_request(self, request):
         # Connection needs first to be at the public schema, as this is where
         # the tenant metadata is stored.
         connection.set_schema_to_public()
-        hostname = self.hostname_from_request(request)
+        tenant_model = get_tenant_model()
 
-        domain_model = get_tenant_domain_model()
         try:
-            tenant = self.get_tenant(domain_model, hostname)
-        except domain_model.DoesNotExist:
-            raise self.TENANT_NOT_FOUND_EXCEPTION('No tenant for hostname "%s"' % hostname)
+            tenant = self.get_tenant(tenant_model, request.user)
+        except tenant_model.DoesNotExist:
+            raise self.TENANT_NOT_FOUND_EXCEPTION('No tenant for user "{}"'.format(request.user))
 
-        tenant.domain_url = hostname
         request.tenant = tenant
 
         connection.set_tenant(request.tenant)

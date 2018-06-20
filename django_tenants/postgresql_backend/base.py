@@ -4,10 +4,11 @@ from django.conf import settings
 from importlib import import_module
 
 from django.core.exceptions import ImproperlyConfigured, ValidationError
-from django_tenants.utils import get_public_schema_name, get_limit_set_calls
+from django_tenants.utils import get_public_schema_name, get_limit_set_calls, protect_case
 from django_tenants.postgresql_backend.introspection import DatabaseSchemaIntrospection
 import django.db.utils
 import psycopg2
+from psycopg2.extensions import AsIs
 
 
 DatabaseError = django.db.utils.DatabaseError
@@ -69,10 +70,7 @@ class DatabaseWrapper(original_backend.DatabaseWrapper):
         but it does not actually modify the db connection.
         """
         self.tenant = tenant
-        self.schema_name = tenant.schema_name
-        self.include_public_schema = include_public
-        self.set_settings_schema(self.schema_name)
-        self.search_path_set = False
+        self._set_schema(tenant.schema_name, include_public)
 
     def set_schema(self, schema_name, include_public=True):
         """
@@ -80,22 +78,25 @@ class DatabaseWrapper(original_backend.DatabaseWrapper):
         but it does not actually modify the db connection.
         """
         self.tenant = FakeTenant(schema_name=schema_name)
-        self.schema_name = schema_name
-        self.include_public_schema = include_public
-        self.set_settings_schema(schema_name)
-        self.search_path_set = False
+        self._set_schema(schema_name, include_public)
 
     def set_schema_to_public(self):
         """
         Instructs to stay in the common 'public' schema.
         """
         self.tenant = FakeTenant(schema_name=get_public_schema_name())
-        self.schema_name = get_public_schema_name()
-        self.set_settings_schema(self.schema_name)
-        self.search_path_set = False
+        self._set_schema(get_public_schema_name())
 
-    def set_settings_schema(self, schema_name):
-        self.settings_dict['SCHEMA'] = schema_name
+    def set_settings_schema(self, schema_name, include_public=True):
+        self.settings_dict['SCHEMA'] = [schema_name]  # should not be getting set to public when not necessary
+        if include_public and schema_name != get_public_schema_name():
+            self.settings_dict['SCHEMA'].append(get_public_schema_name())
+
+    def _set_schema(self, schema_name, include_public=True):
+        self.schema_name = schema_name
+        self.include_public_schema = include_public
+        self.set_settings_schema(schema_name, include_public)
+        self.search_path_set = False
 
     def get_schema(self):
         warnings.warn("connection.get_schema() is deprecated, use connection.schema_name instead.",
@@ -129,16 +130,15 @@ class DatabaseWrapper(original_backend.DatabaseWrapper):
                                            "to call set_schema() or set_tenant()?")
             _check_schema_name(self.schema_name)
             public_schema_name = get_public_schema_name()
-            search_paths = []
 
             if self.schema_name == public_schema_name:
-                search_paths = [public_schema_name]
+                search_paths = [protect_case(public_schema_name)]
             elif self.include_public_schema:
-                search_paths = [self.schema_name, public_schema_name]
+                search_paths = [protect_case(self.schema_name), protect_case(public_schema_name)]
             else:
-                search_paths = [self.schema_name]
+                search_paths = [protect_case(self.schema_name)]
 
-            search_paths.extend(EXTRA_SEARCH_PATHS)
+            search_paths.extend([protect_case(extra_path) for extra_path in EXTRA_SEARCH_PATHS])
 
             if name:
                 # Named cursor can only be used once
@@ -152,7 +152,7 @@ class DatabaseWrapper(original_backend.DatabaseWrapper):
             # if the next instruction is not a rollback it will just fail also, so
             # we do not have to worry that it's not the good one
             try:
-                cursor_for_search_path.execute('SET search_path = {0}'.format(','.join(search_paths)))
+                cursor_for_search_path.execute('SET search_path = %s', (AsIs(','.join(search_paths)),))
             except (django.db.utils.DatabaseError, psycopg2.InternalError):
                 self.search_path_set = False
             else:
