@@ -8,15 +8,8 @@ from django.utils.deprecation import MiddlewareMixin
 
 from django_tenants.utils import get_public_schema_name, get_tenant_model
 
-import django
 
-if django.VERSION >= (1, 10, 0):
-    MIDDLEWARE_MIXIN = django.utils.deprecation.MiddlewareMixin
-else:
-    MIDDLEWARE_MIXIN = object
-
-
-class TenantMainMiddleware(MIDDLEWARE_MIXIN):
+class TenantMainMiddleware(MiddlewareMixin):
     TENANT_NOT_FOUND_EXCEPTION = Http404
     """
     This middleware should be placed at the very top of the middleware stack.
@@ -26,6 +19,8 @@ class TenantMainMiddleware(MIDDLEWARE_MIXIN):
 
     @staticmethod
     def get_tenant(tenant_model, user):
+        if not user:
+            raise tenant_model.DoesNotExist('No user logged in')
         if user.is_authenticated() and not user.is_staff:
             return tenant_model.objects.get(user=user)
 
@@ -34,11 +29,12 @@ class TenantMainMiddleware(MIDDLEWARE_MIXIN):
         # the tenant metadata is stored.
         connection.set_schema_to_public()
         tenant_model = get_tenant_model()
+        user = getattr(request, 'user', None)
 
         try:
-            tenant = self.get_tenant(tenant_model, request.user)
+            tenant = self.get_tenant(tenant_model, user)
         except tenant_model.DoesNotExist:
-            raise self.TENANT_NOT_FOUND_EXCEPTION('No tenant for user "{}"'.format(request.user))
+            raise self.TENANT_NOT_FOUND_EXCEPTION('No tenant for user "{}"'.format(user))
 
         request.tenant = tenant
 
