@@ -17,7 +17,7 @@ class DefaultTenantMiddleware(SuspiciousTenantMiddleware):
     def get_tenant(self, tenant_model, user):
         try:
             return super(DefaultTenantMiddleware, self).get_tenant(tenant_model, user)
-        except tenant_model.DoesNotExist:
+        except self.TENANT_NOT_FOUND_EXCEPTION:
             schema_name = self.DEFAULT_SCHEMA_NAME
             if not schema_name:
                 schema_name = get_public_schema_name()
