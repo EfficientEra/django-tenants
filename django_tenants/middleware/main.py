@@ -2,6 +2,8 @@ from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 from django.db import connection
 from django.http import Http404
+
+
 from django.utils.deprecation import MiddlewareMixin
 
 from django_tenants.utils import get_public_schema_name, get_tenant_model
@@ -15,8 +17,9 @@ class TenantMainMiddleware(MiddlewareMixin):
     various ways which is better than corrupting or revealing data.
     """
 
-    @staticmethod
-    def get_tenant(tenant_model, user):
+    def get_tenant(self, tenant_model, user):
+        if not user:
+            raise self.TENANT_NOT_FOUND_EXCEPTION('No user logged in')
         if user.is_authenticated() and not user.is_staff:
             return tenant_model.objects.get(user=user)
 
@@ -25,11 +28,12 @@ class TenantMainMiddleware(MiddlewareMixin):
         # the tenant metadata is stored.
         connection.set_schema_to_public()
         tenant_model = get_tenant_model()
+        user = getattr(request, 'user', None)
 
         try:
-            tenant = self.get_tenant(tenant_model, request.user)
+            tenant = self.get_tenant(tenant_model, user)
         except tenant_model.DoesNotExist:
-            raise self.TENANT_NOT_FOUND_EXCEPTION('No tenant for user "{}"'.format(request.user))
+            raise self.TENANT_NOT_FOUND_EXCEPTION('No tenant for user "{}"'.format(user))
 
         request.tenant = tenant
 
