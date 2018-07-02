@@ -2,8 +2,9 @@ import argparse
 
 from django.core.management.base import BaseCommand, CommandError
 from django.core.management import call_command, get_commands, load_command_class
-from django.db import connection
+from django.db import connections
 from . import InteractiveTenantOption
+from django_tenants.utils import get_tenant_database_alias
 
 
 class Command(InteractiveTenantOption, BaseCommand):
@@ -44,11 +45,12 @@ class Command(InteractiveTenantOption, BaseCommand):
         schema_namespace, args = schema_parser.parse_known_args(argv)
 
         tenant = self.get_tenant_from_options_or_interactive(schema_name=schema_namespace.schema_name)
+        connection = connections[get_tenant_database_alias()]
         connection.set_tenant(tenant)
         klass.run_from_argv(args)
 
-
     def handle(self, *args, **options):
         tenant = self.get_tenant_from_options_or_interactive(**options)
+        connection = connections[get_tenant_database_alias()]
         connection.set_tenant(tenant)
         call_command(*args, **options)

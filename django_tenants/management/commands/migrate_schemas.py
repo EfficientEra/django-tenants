@@ -1,6 +1,8 @@
 from django_tenants.migration_executors import get_executor
 from django_tenants.utils import get_tenant_model, get_public_schema_name, schema_exists, get_tenant_database_alias
 from django_tenants.management.commands import SyncCommon
+from django_tenants.signals import post_schema_migrate
+from django_tenants.models import TenantMixin
 
 
 class MigrateSchemasCommand(SyncCommon):
@@ -58,6 +60,8 @@ class MigrateSchemasCommand(SyncCommon):
                     'schema_name', flat=True)
 
             executor.run_migrations(tenants=tenants)
+            for tenant in tenants:
+                post_schema_migrate.send(sender=TenantMixin, tenant=tenant.serializable_fields())
 
 
 Command = MigrateSchemasCommand

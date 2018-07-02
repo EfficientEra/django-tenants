@@ -9,3 +9,8 @@ schema_needs_to_be_sync = Signal(providing_args=['tenant'])
 schema_needs_to_be_sync.__doc__ = """
 Schema needs to be synced
 """
+
+post_schema_migrate = Signal(providing_args=['tenant'])
+post_schema_migrate.__doc__ = """
+Sent after migrations have been run on a tenant.
+"""

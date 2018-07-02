@@ -24,8 +24,9 @@ def run_migrations(args, options, executor_codename, schema_name, allow_atomic=T
             msg
         )
 
+    include_public = True if (options.get('shared') or schema_name == 'public') else False
     connection = connections[get_tenant_database_alias()]
-    connection.set_schema(schema_name)
+    connection.set_schema(schema_name, include_public=include_public)
 
     stdout = OutputWrapper(sys.stdout)
     stdout.style_func = style_func
