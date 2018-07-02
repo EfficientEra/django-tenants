@@ -30,7 +30,6 @@ class Command(InteractiveTenantOption, BaseCommand):
         except KeyError:
             raise CommandError("Unknown command: %r" % argv[2])
 
-
         if isinstance(app_name, BaseCommand):
             # if the command is already loaded, use it directly.
             klass = app_name
