@@ -21,7 +21,11 @@ class TenantMainMiddleware(MiddlewareMixin):
         if not user:
             raise self.TENANT_NOT_FOUND_EXCEPTION('No user logged in')
         if user.is_authenticated() and not user.is_staff:
-            return tenant_model.objects.get(user=user)
+            try:
+                return tenant_model.objects.get(user=user)
+            except tenant_model.DoesNotExist:
+                raise self.TENANT_NOT_FOUND_EXCEPTION('User does not have tenant')
+        raise self.TENANT_NOT_FOUND_EXCEPTION('Staff user')
 
     def process_request(self, request):
         # Connection needs first to be at the public schema, as this is where
