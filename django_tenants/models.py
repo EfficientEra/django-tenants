@@ -4,7 +4,7 @@ from django.core.management import call_command
 from psycopg2.extensions import AsIs
 from .postgresql_backend.base import _check_schema_name
 from .signals import post_schema_sync, schema_needs_to_be_sync
-from .utils import get_public_schema_name, get_creation_fakes_migrations, get_tenant_database_alias, schema_exists
+from .utils import get_public_schema_name, get_creation_fakes_migrations, get_tenant_database_alias, schema_exists, clone_schema, get_tenant_base_schema
 
 
 class TenantMixin(models.Model):
@@ -98,7 +98,7 @@ class TenantMixin(models.Model):
         elif is_new:
             # although we are not using the schema functions directly, the signal might be registered by a listener
             schema_needs_to_be_sync.send(sender=TenantMixin, tenant=self.serializable_fields())
-        elif not is_new and self.auto_create_schema and not schema_exists(self.schema_name):
+        elif not schema_exists(self.schema_name) and self.auto_create_schema and not is_new:
             # Create schemas for existing models, deleting only the schema on failure
             try:
                 self.create_schema(check_if_exists=True, verbosity=verbosity)
@@ -155,22 +155,24 @@ class TenantMixin(models.Model):
         if check_if_exists and schema_exists(self.schema_name):
             return False
 
-        # create the schema
-        cursor.execute('CREATE SCHEMA %s', (AsIs(connection.ops.quote_name(self.schema_name)),))
-
         fake_migrations = get_creation_fakes_migrations()
 
         if sync_schema:
             try:
                 if fake_migrations:
-                    # First create empty tables
+                    # copy tables and data from provided model schema
+                    base_schema = get_tenant_base_schema()
+                    clone_schema(base_schema, self.schema_name)
+
                     call_command('migrate_schemas',
                                  tenant=True,
+                                 fake=True,
                                  schema_name=self.schema_name,
                                  interactive=False,
                                  verbosity=verbosity)
-                    # FIXME: this isn't actually different from the regular migration
                 else:
+                    # create the schema
+                    cursor.execute('CREATE SCHEMA %s', (AsIs(connection.ops.quote_name(self.schema_name)),))
                     call_command('migrate_schemas',
                                  tenant=True,
                                  schema_name=self.schema_name,
