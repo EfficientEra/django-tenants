@@ -30,6 +30,10 @@ def get_limit_set_calls():
     return getattr(settings, 'TENANT_LIMIT_SET_CALLS', False)
 
 
+def get_clone_schema_owner():
+    return getattr(settings, 'CLONE_SCHEMA_OWNER', 'postgres')
+
+
 def get_creation_fakes_migrations():
     """
     If TENANT_CREATION_FAKES_MIGRATIONS, tenants will be created by cloning an existing schema
@@ -344,14 +348,20 @@ $BODY$
   LANGUAGE plpgsql VOLATILE
   COST 100;
 ALTER FUNCTION clone_schema(text, text, boolean)
-  OWNER TO postgres;
+  OWNER TO %(clone_schema_owner)s;
 """
 
 
 def _create_clone_schema_function():
+    """
+    Will be created under the user 'postgres' by default.
+    If you wish to create this under another user, specify the user name as CLONE_SCHEMA_OWNER in settings.
+    :return:
+    """
+    owner = get_clone_schema_owner()
     connection = connections[get_tenant_database_alias()]
     cursor = connection.cursor()
-    cursor.execute(CLONE_SCHEMA_FUNCTION)
+    cursor.execute(CLONE_SCHEMA_FUNCTION, {'clone_schema_owner': owner})
     cursor.close()
 
 
