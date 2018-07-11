@@ -3,6 +3,7 @@ from django.conf import settings
 from django.db import connections, DEFAULT_DB_ALIAS, transaction
 from django.db.utils import ProgrammingError
 from django.core.exceptions import ImproperlyConfigured
+from psycopg2.extensions import AsIs
 
 
 try:
@@ -347,8 +348,6 @@ END;
 $BODY$
   LANGUAGE plpgsql VOLATILE
   COST 100;
-ALTER FUNCTION clone_schema(text, text, boolean)
-  OWNER TO %(clone_schema_owner)s;
 """
 
 
@@ -361,7 +360,8 @@ def _create_clone_schema_function():
     owner = get_clone_schema_owner()
     connection = connections[get_tenant_database_alias()]
     cursor = connection.cursor()
-    cursor.execute(CLONE_SCHEMA_FUNCTION, {'clone_schema_owner': owner})
+    cursor.execute(CLONE_SCHEMA_FUNCTION)
+    cursor.execute("ALTER FUNCTION clone_schema(text, text, boolean) OWNER TO %s;", (AsIs(owner),))
     cursor.close()
 
 
