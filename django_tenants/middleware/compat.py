@@ -1,31 +1,21 @@
+# -*- coding: utf-8 -*-
+from __future__ import absolute_import, print_function, unicode_literals
+
 from django.conf import settings
-from django.contrib.contenttypes.models import ContentType
 from django.db import connection
+from django_tenants.middleware.default import DefaultTenantMiddleware
+from django.contrib.contenttypes.models import ContentType
+from django_tenants.utils import get_public_schema_name, get_tenant_model
 from django.http import Http404
 
 
-from django.utils.deprecation import MiddlewareMixin
-
-from django_tenants.utils import get_public_schema_name, get_tenant_model
-
-
-class TenantMainMiddleware(MiddlewareMixin):
-    TENANT_NOT_FOUND_EXCEPTION = Http404
+class CompatTenantMiddleware(DefaultTenantMiddleware):
     """
-    This middleware should be placed at the very top of the middleware stack.
-    Selects the proper database schema using the request host. Can fail in
-    various ways which is better than corrupting or revealing data.
+    Extend the DefaultTenantMiddleware in scenario where you want to
+    allow existing users to access the app without having a tenant set up.
     """
-
-    def get_tenant(self, tenant_model, user):
-        if not user:
-            raise self.TENANT_NOT_FOUND_EXCEPTION('No user logged in')
-        if user.is_authenticated() and not user.is_staff:
-            try:
-                return tenant_model.objects.get(user=user)
-            except tenant_model.DoesNotExist:
-                raise self.TENANT_NOT_FOUND_EXCEPTION('User does not have tenant')
-        raise self.TENANT_NOT_FOUND_EXCEPTION('Staff user')
+    DEFAULT_SCHEMA_NAME = None
+    NO_TENANT_EXCEPTION = Http404  # in case no tenants exist yet
 
     def process_request(self, request):
         # Connection needs first to be at the public schema, as this is where
@@ -37,7 +27,7 @@ class TenantMainMiddleware(MiddlewareMixin):
         try:
             tenant = self.get_tenant(tenant_model, user)
         except tenant_model.DoesNotExist:
-            raise self.TENANT_NOT_FOUND_EXCEPTION('No tenant for user "{}"'.format(user))
+            tenant = tenant_model.objects.get(schema_name=get_public_schema_name())
 
         request.tenant = tenant
 
