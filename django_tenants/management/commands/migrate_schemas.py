@@ -60,7 +60,9 @@ class MigrateSchemasCommand(SyncCommon):
                     'schema_name', flat=True)
 
             executor.run_migrations(tenants=tenants)
-            for tenant in tenants:
+            tenant_objects = get_tenant_model().objects.filter(schema_name__in=tenants)
+
+            for tenant in tenant_objects:
                 if not isinstance(tenant, TenantMixin):
                     continue
                 post_schema_migrate.send(sender=TenantMixin, tenant=tenant.serializable_fields())

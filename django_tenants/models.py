@@ -136,6 +136,7 @@ class TenantMixin(models.Model):
                             % connection.schema_name)
 
         if has_schema and schema_exists(self.schema_name) and allow_delete:
+            connection.set_schema(self.schema_name, include_public=True)
             cursor = connection.cursor()
             cursor.execute('DROP SCHEMA %s CASCADE', (AsIs(connection.ops.quote_name(self.schema_name)),))
 
