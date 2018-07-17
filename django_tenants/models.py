@@ -165,12 +165,6 @@ class TenantMixin(models.Model):
                     base_schema = get_tenant_base_schema()
                     clone_schema(base_schema, self.schema_name)
 
-                    call_command('migrate_schemas',
-                                 tenant=True,
-                                 fake=True,
-                                 schema_name=self.schema_name,
-                                 interactive=False,
-                                 verbosity=verbosity)
                 else:
                     # create the schema
                     cursor.execute('CREATE SCHEMA %s', (AsIs(connection.ops.quote_name(self.schema_name)),))
