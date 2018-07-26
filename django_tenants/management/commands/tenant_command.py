@@ -52,4 +52,6 @@ class Command(InteractiveTenantOption, BaseCommand):
         tenant = self.get_tenant_from_options_or_interactive(**options)
         connection = connections[get_tenant_database_alias()]
         connection.set_tenant(tenant)
+        if isinstance(options.get('command_name'), list):
+            options['command_name'] = options['command_name'][0]
         call_command(*args, **options)
