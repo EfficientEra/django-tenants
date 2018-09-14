@@ -3,7 +3,7 @@ from django.core.management import call_command
 # noinspection PyProtectedMember
 from psycopg2.extensions import AsIs
 from .postgresql_backend.base import _check_schema_name
-from .signals import post_schema_sync, schema_needs_to_be_sync
+from .signals import post_schema_sync, schema_needs_to_be_sync, post_schema_migrate
 from .utils import get_public_schema_name, get_creation_fakes_migrations, get_tenant_database_alias, schema_exists, clone_schema, get_tenant_base_schema
 
 
@@ -164,7 +164,7 @@ class TenantMixin(models.Model):
                     # copy tables and data from provided model schema
                     base_schema = get_tenant_base_schema()
                     clone_schema(base_schema, self.schema_name)
-
+                    post_schema_migrate.send(sender=TenantMixin, tenant=self.serializable_fields())
                 else:
                     # create the schema
                     cursor.execute('CREATE SCHEMA %s', (AsIs(connection.ops.quote_name(self.schema_name)),))
